@@ -1,6 +1,6 @@
 # 
 # Audio Stream Transcriber
-# Version 0.5
+# Version 0.6
 # 
 
 import os
@@ -82,6 +82,7 @@ class AudioStreamTranscriber:
             unprocessed_audio_buffer = np.array([], dtype=np.float32)
             
             this_is_the_last_block = False
+            
 
             # Open the SRT file for writing at the beginning
             with open(srt_path, "w", encoding="utf-8") as srt_file:
@@ -132,12 +133,34 @@ class AudioStreamTranscriber:
                         
                         last_committed_segment = segments[num_segments_to_commit - 1]
                         current_block_commit_point_s = last_committed_segment.end
-                        last_committed_segment_end_s = total_audio_processed_s + current_block_commit_point_s
                     
                     else: # There are no segments to commit
                         if raw_audio_block: # if this is not the last chunk of audio
                             # On this iteration of the loop, we read stuff, so its safe to loop.
-                            last_committed_segment_end_s = total_audio_processed_s + block_duration_s*empty_fraction
+                            # The way I see this, there are two cases:
+                            #    1. There are no returned segments.
+                            #    2. There was one returned segment.
+                            # If there were no returned segments...
+                            # I think it's easier to simply consider how much buffer there is...
+                            current_block_sample_count = len(current_block)
+                            current_block_duration_s = current_block_sample_count / samplerate # can be float
+                            # The point of this next instruction is to determine where to cut off the silence...
+                            # Let's just naively assume that there's no reason for a block to ever exceed
+                            #    block_duration_s
+                            if current_block_duration_s > block_duration_s:
+                                # If the current_block is longer than block_duration_s,
+                                #    keep only the last block_duration_s*(1-empty_fraction)
+                                current_block_commit_point_s = current_block_duration_s - block_duration_s*(1-empty_fraction)
+                                
+                            else:
+                                # Otherwise, chop off the first block_duration_s*empty_fraction of current_block
+                                current_block_commit_point_s = block_duration_s*empty_fraction
+                        # if this is the last block, it won't matter because the loop will break.
+                        #     Still, the progress_line is dependant upon this...
+                                                
+                    # This has been moved outside of the conditional block due to later logic
+                    #    dependant upon last_committed_segment_end_s as well as current_block_commit_point_s
+                    last_committed_segment_end_s = total_audio_processed_s + current_block_commit_point_s
 
                     # --- Real-time Progress Update ---
                     runtime = time.time() - transcription_start_time
