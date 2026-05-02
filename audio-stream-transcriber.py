@@ -1,6 +1,6 @@
 # 
 # Audio Stream Transcriber
-# Version 0.3
+# Version 0.4
 # 
 
 import os
@@ -73,6 +73,7 @@ class AudioStreamTranscriber:
             samplerate = 16000
             block_duration_s = 60 
             block_size_bytes = block_duration_s * samplerate * 2
+            empty_fraction = 0.5
 
             segment_index = 1
             transcription_start_time = time.time()
@@ -118,26 +119,31 @@ class AudioStreamTranscriber:
                         last_committed_segment = segments[num_segments_to_commit - 1]
                         last_committed_segment_end_s = total_audio_processed_s + last_committed_segment.end
                         commit_point_s = last_committed_segment.end
+                    
+                    else: # There are no segments to commit
+                        if raw_audio_block: # if this is not the last chunk of audio
+                            last_committed_segment_end_s = total_audio_processed_s + block_duration_s*empty_fraction
 
-                        # --- Real-time Progress Update ---
-                        runtime = time.time() - transcription_start_time
-                        processing_speed = last_committed_segment_end_s / runtime
-                        remaining_audio_s = total_duration - last_committed_segment_end_s
-                        
-                        eta_s = 0
-                        if processing_speed > 0:
-                            eta_s = remaining_audio_s / processing_speed
-                        
-                        progress_line = (
-                            f"runtime {format_duration(runtime)} | "
-                            f"committed {format_duration(last_committed_segment_end_s)} / {format_duration(total_duration)} | "
-                            f"ETA in {format_duration(eta_s)}"
-                        )
-                        # Print on one line, clearing the previous one
-                        sys.stdout.write(f"\r\033[K{progress_line}")
-                        sys.stdout.flush()
-                        
-                        print(f"\n~ {last_committed_segment.text.strip()}")
+                    # --- Real-time Progress Update ---
+                    runtime = time.time() - transcription_start_time
+                    processing_speed = last_committed_segment_end_s / runtime
+                    remaining_audio_s = total_duration - last_committed_segment_end_s
+                    
+                    eta_s = 0
+                    if processing_speed > 0:
+                        eta_s = remaining_audio_s / processing_speed
+                    
+                    progress_line = (
+                        f"runtime {format_duration(runtime)} | "
+                        f"committed {format_duration(last_committed_segment_end_s)} / {format_duration(total_duration)} | "
+                        f"ETA in {format_duration(eta_s)}"
+                    )
+                    # Print on one line, clearing the previous one
+                    sys.stdout.write(f"\r\033[K{progress_line}")
+                    sys.stdout.flush()
+                    
+                    print(f"\n~ {last_committed_segment.text.strip()}")
+                            
                     
                     # Update progress and buffer for the next iteration
                     total_audio_processed_s += commit_point_s
