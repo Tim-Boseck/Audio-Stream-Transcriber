@@ -1,52 +1,49 @@
-# Audio Stream Transcriber
+# Audio Stream Transcriber (v0.6)
 
-A private utility for high-performance, memory-efficient audio transcription. While originally designed to transcribe long-form audiobooks, this tool has evolved into a robust engine for transcribing long-duration recordings of meetings, lectures, and conversations.
+A personal workflow utility designed to leverage the high-performance capabilities of **faster-whisper** for long-duration audio transcription. 
 
-## 🛠️ Project Evolution
-This project has undergone significant architectural shifts to handle increasingly complex audio profiles:
+> **Note on Core Technology:** This project is a convenience wrapper and does not contain any Whisper models or inference logic itself. It relies entirely on [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper), a highly efficient reimplementation of [openai/whisper](https://github.com/openai/whisper) model using [CTranslate2](https://github.com/OpenNMT/CTranslate2).
 
-* **v1–v2 (The In-Memory Era):** Used `pydub` to load entire files into RAM. Worked well for short clips but caused system instability with large audiobooks.
-* **v3–v5 (The Streaming Era):** Introduced FFmpeg and `soundfile`. Switched to a pipe-based architecture, allowing the tool to process files of any length by streaming chunks from disk without exhausting memory.
-* **v6 (The Optimization Era):** Implemented **Active Silence Culling**. Added logic to detect and "prune" the audio buffer during periods of silence/inactivity. This prevents the "exponential slowdown" bug where the engine would otherwise accumulate and re-transcribe mounting amounts of silent data.
+## 🎯 Use Cases
+This tool was developed as a personal convenience to manage two primary workflows:
+1.  **Audiobook Transcription:** Handling massive, multi-hour audio files that would otherwise exhaust system RAM.
+2.  **Meeting & Lecture Archiving:** Processing long-duration recordings of conversations, classes, or meetings where the ability to extract clean, timestamped text (and subsequently plain text) is essential.
 
 ## 🚀 Key Features
 
-* **True Stream Processing:** Leverages FFmpeg `stdout` pipes to feed raw PCM data directly into the Whisper model, ensuring constant memory usage regardless of file size.
-* **Advanced Buffer Management:** Intelligent slicing of the audio buffer during silence to prevent processing bottlenecks and infinite loops.
-_   **Real-Time Dashboard:** A live CLI interface providing:
-    *   Total runtime.
-    *   Progress tracking (Committed time vs. Total duration).
-    *   Live transcription snippets as they are committed to disk.
-    *   Dynamic ETA calculation based on current processing speed.
-* **Format Agnostic:** Uses FFmpeg as the backend, allowing for the transcription of MP3, WAV, M4A, FLAC, and nearly any other audio format.
+### `audio-stream-transcriber.py` (The Engine)
+*   **Streaming Architecture:** Uses an FFmpeg-to-Python pipe to stream raw PCM data directly from disk. This ensures that memory usage remains constant, regardless of whether you are transcribing a 5-minute clip or a 20-hour recording.
+*   **Active Silence Culling:** Implements intelligent buffer management to detect and "prune" the audio buffer during periods of silence. This prevents the exponential slowdowns (buffer bloat) that occur when a transcription engine attempts to re-process growing amounts of silent data.
+*   **Real-Time Telemetry:** A live CLI dashboard providing:
+    *   Cumulative runtime tracking.
+    *   Progress metrics (Committed audio vs. Total duration).
+    *   Dynamic ETA calculation based on real-time processing throughput.
+*   **Robustness:** Designed to handle the "end-of-file" edge cases, ensuring that any residual data left in the buffer is processed and committed before the process terminates.
 
-## ⚙️ Setup & Requirements
+### `minimize_srt_to_raw.py` (The Post-Processor)
+*   **Text Extraction:** A utility to strip SRT timecode metadata and convert subtitles into clean, human-readable plain text.
+*   / **De-duplication:** Automatically removes consecutive duplicate lines to ensure the resulting `.txt` file is a clean transcript rather than a repetitive log of timestamps.
+
+## 🛠️ Requirements & Setup
 
 ### Prerequisites
-1.  **Python 3.8+**
-2.  **FFmpeg:** Essential for the streaming pipeline.
+*   **Python 3.8+**
+*   **FFmpeg:** Essential for the streaming pipeline and audio decoding.
     *   **Windows:** `choco install ffmpeg` or download from [ffmpeg.org](https://ffmpeg.org/).
     *   **macOS:** `brew install ffmpeg`
     *   **Linux:** `sudo apt install ffmpeg`
 
 ### Installation
 ```bash
-pip install faster-whisper numpy
+# Install the required dependencies via pip
+pip install -r requirements.txt
 ```
-
-## 📖 Usage
-Run the script via your terminal:
-```bash
-python audiobook6.py
-```
-The script will prompt you for the full path to your audio file. It will then automatically determine the output `.srt` path in the same directory.
 
 ## 🗺️ Future Roadmap
-
-* [ ] **CLI Argument Parsing:** Implement `argparse` to allow passing file paths and settings (like `--model-size`) directly via the command line.
-* [ ] **Resume/Continue Capability:** Add a feature to parse existing `.srt` files to find the last timestamped segment, allowing the transcriber to skip already-processed audio and resume interrupted jobs.
-* [ ] **Hardware Auto-Detection:** Implement logic to automatically detect NVIDIA GPUs and configure `device="cuda"` and `compute_type="float16"` without manual code edits.
-* [ ] **Batch Processing:** Implement a queue system or `ProcessPoolExecutor` to handle directories of files or multiple simultaneous transcription jobs.
+* [ ] **CLI Argument Parsing:** Move away from interactive prompts to a standard `argparse` interface for easier automation.
+* [ ] **Resume/Continue Capability:** Implement logic to parse existing `.srt` files to skip already-processed audio segments and resume interrupted jobs.
+* [ ] **Hardware Auto-Detection:** Add automatic detection of NVIDIA GPUs to configure `device="cuda"` and `compute_type="float16"` without manual script modification.
+* [ ] **Batch Processing:** Support for directory-wide transcription via a process queue.
 
 ## ⚖️ License
 **Private Project.** This is a personal utility for individual use. No license is provided, and redistribution or use of this code is not intended.
