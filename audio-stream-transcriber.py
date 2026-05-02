@@ -1,7 +1,10 @@
 # 
 # Audio Stream Transcriber
-# Version 0.6
-# 
+#
+# Version 0.7
+# ... Added CUDA
+#
+
 
 import os
 import sys
@@ -33,6 +36,23 @@ def format_duration(seconds):
         return f"{minutes}m{secs:02}s"
     else:
         return f"{secs}s"
+
+def interrogate_smi():
+    global smi_says_go, CUDA_Version
+    
+    result = subprocess.run(
+    ["nvidia-smi"],
+    capture_output=True,
+    text=True,
+    check=True
+    )
+    
+    data = result.stdout
+    i = data.find("CUDA Version")
+    j = data.find("|",i)
+    #len("CUDA Version:")=13
+    CUDA_Version = float(data[i+13:j].strip())
+    smi_says_go = CUDA_Version>=12
 
 # --- Main Transcription Class ---
 
@@ -221,11 +241,33 @@ class AudioStreamTranscriber:
             raise e
 
 if __name__ == "__main__":
-    transcriber = AudioStreamTranscriber(
-        model_size="base",
-        device="cpu",
-        compute_type="int8"
-    )
+    interrogate_smi()  # Calls subprocess
+    if smi_says_go:
+        print("Sufficient CUDA device detected.\n")
+        try: # Try to instantiate CUDA model
+            transcriber = AudioStreamTranscriber(
+            model_size="base",
+            device="cuda",          # Change from "cpu"
+            compute_type="float16"  # Change from "int8"
+            )
+        except Exception as e: # Fallback to CPU
+            
+            print("Failed to initialize CUDA model. Initializing CPU model.\n")
+            
+            transcriber = AudioStreamTranscriber(
+                model_size="base",
+                device="cpu",
+                compute_type="int8"
+            )
+    else:
+        print("Initializing CPU model.\n")
+        
+        transcriber = AudioStreamTranscriber(
+            model_size="base",
+            device="cpu",
+            compute_type="int8"
+        )
+
     try:
         input_path = input("Please enter the full path to your audio file: ").strip().strip('"')
         if not os.path.isfile(input_path):
