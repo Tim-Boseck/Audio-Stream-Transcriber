@@ -1,6 +1,6 @@
 # 
 # Audio Stream Transcriber
-# Version 0.4
+# Version 0.5
 # 
 
 import os
@@ -72,7 +72,7 @@ class AudioStreamTranscriber:
             
             samplerate = 16000
             block_duration_s = 60 
-            block_size_bytes = block_duration_s * samplerate * 2
+            block_size_bytes = block_duration_s * samplerate * 2 # I cannot remember why there's a `2` here.
             empty_fraction = 0.5
 
             segment_index = 1
@@ -80,27 +80,41 @@ class AudioStreamTranscriber:
             total_audio_processed_s = 0
             
             unprocessed_audio_buffer = np.array([], dtype=np.float32)
+            
+            this_is_the_last_block = False
 
             # Open the SRT file for writing at the beginning
             with open(srt_path, "w", encoding="utf-8") as srt_file:
                 while True:
                     raw_audio_block = ffmpeg_process.stdout.read(block_size_bytes)
+                    
+                    if not raw_audio_block:
+                        # So, if I let execution continue without my flag, I'd get to this clause,
+                        if unprocessed_audio_buffer.size == 0:
+                            break
+                        #     and I'd miss this exit point because `unprocessed_audio_buffer.size != 0`
+                        else:
+                            # but I feel like I just don't know enough to confirm that I've done
+                            #    everything because `unprocessed_audio_buffer` *might* be uncommitted
+                            #    simply because it *might* belong with subsequent samples.
+                            this_is_the_last_block = True
+                            
+                    last_committed_segment = None
+                    
                     new_audio_block = np.frombuffer(raw_audio_block, dtype=np.int16).astype(np.float32) / 32768.0
                     current_block = np.concatenate([unprocessed_audio_buffer, new_audio_block])
-                    
-                    if not raw_audio_block and unprocessed_audio_buffer.size == 0:
-                        break
 
                     segments, _ = self.model.transcribe(current_block, beam_size=5)
                     segments = list(segments)
                     
-                    commit_point_s = 0
+                    current_block_commit_point_s = 0
                     last_committed_segment_end_s = total_audio_processed_s
                     
                     # Determine which segments to commit
                     num_segments_to_commit = len(segments)
                     if raw_audio_block: # If we are not at the end of the file, don't commit the last segment
                         num_segments_to_commit -= 1
+                    # Here's a spot where an `elif not num_segments_to_commit:` could break.
                     
                     if num_segments_to_commit > 0:
                         for i in range(num_segments_to_commit):
@@ -117,11 +131,12 @@ class AudioStreamTranscriber:
                         srt_file.flush() # Ensure data is written to disk
                         
                         last_committed_segment = segments[num_segments_to_commit - 1]
-                        last_committed_segment_end_s = total_audio_processed_s + last_committed_segment.end
-                        commit_point_s = last_committed_segment.end
+                        current_block_commit_point_s = last_committed_segment.end
+                        last_committed_segment_end_s = total_audio_processed_s + current_block_commit_point_s
                     
                     else: # There are no segments to commit
                         if raw_audio_block: # if this is not the last chunk of audio
+                            # On this iteration of the loop, we read stuff, so its safe to loop.
                             last_committed_segment_end_s = total_audio_processed_s + block_duration_s*empty_fraction
 
                     # --- Real-time Progress Update ---
@@ -142,13 +157,33 @@ class AudioStreamTranscriber:
                     sys.stdout.write(f"\r\033[K{progress_line}")
                     sys.stdout.flush()
                     
-                    print(f"\n~ {last_committed_segment.text.strip()}")
-                            
+                    if last_committed_segment != None:
+                        print(f"\n~ {last_committed_segment.text.strip()}")
+                    else:
+                        print(f"\n~ ")
                     
                     # Update progress and buffer for the next iteration
-                    total_audio_processed_s += commit_point_s
-                    commit_point_samples = int(commit_point_s * samplerate)
-                    unprocessed_audio_buffer = current_block[commit_point_samples:]
+                    total_audio_processed_s += current_block_commit_point_s
+                    current_block_commit_point_samples = int(current_block_commit_point_s * samplerate)
+                    unprocessed_audio_buffer = current_block[current_block_commit_point_samples:]
+                    
+                    # However, since I didn't have this check, and the flag set earlier, I'd still have uncommitted nothing.
+                    
+                    if this_is_the_last_block:
+                        
+                        # This would appear to indicate that my previous problem was (at least in part) due to
+                        #     fractional remainders in the final audio block.
+                        print(f"\n\nthis_is_the_last_block: {this_is_the_last_block}")
+                        print(f"runtime: {runtime}")
+                        print(f"remaining_audio_s: {remaining_audio_s}")
+                        print(f"total_audio_processed_s: {total_audio_processed_s}")
+                        print(f"current_block_commit_point_s: {current_block_commit_point_s}")
+                        print(f"current_block_commit_point_samples: {current_block_commit_point_samples}")
+                        print(f"unprocessed_audio_buffer: {unprocessed_audio_buffer}")
+                        print(f"len(raw_audio_block): {len(raw_audio_block)}")
+                        print(f"len(segments): {len(segments)}")
+                        
+                        break
 
             ffmpeg_process.wait()
             print(f"\n\n{'='*50}")
@@ -160,6 +195,7 @@ class AudioStreamTranscriber:
 
         except Exception as e:
             print(f"\nAn unexpected error occurred: {e}")
+            raise e
 
 if __name__ == "__main__":
     transcriber = AudioStreamTranscriber(
@@ -182,3 +218,4 @@ if __name__ == "__main__":
         print("\n\nTranscription cancelled by user.")
     except Exception as e:
         print(f"\nAn unexpected error occurred during setup: {e}")
+        raise e
