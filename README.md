@@ -1,9 +1,3 @@
-Since this is a private, personal project used for organizing your own workflow, the `README.md` should serve more like a **Technical Log** or **Project Documentation** rather than a public-facing product manual. 
-
-Here is a revised `README._md` that reflects the evolution of the tool, its actual use cases, and your technical roadmap.
-
-***
-
 # Audio Stream Transcriber
 
 A private utility for high-performance, memory-efficient audio transcription. While originally designed to transcribe long-form audiobooks, this tool has evolved into a robust engine for transcribing long-duration recordings of meetings, lectures, and conversations.
