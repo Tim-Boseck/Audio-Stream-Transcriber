@@ -14,8 +14,8 @@ This tool was developed as a personal convenience to manage two primary workflow
 ### `audio-stream-transcriber.py` (Interface and file streaming)
 *   **Streaming Architecture:** Uses an FFmpeg-to-Python pipe to stream raw PCM data directly from disk. This ensures that memory usage remains constant, regardless of whether you are transcribing a 5-minute clip or a 20-hour recording.
 *   **Active Silence Culling:** Implements intelligent buffer management to detect and "prune" the audio buffer during periods of silence. This prevents the exponential slowdowns (buffer bloat) that occur when a transcription engine attempts to re-process growing amounts of silent data.
-*   **Real-Time Telemetry:** A live CLI dashboard providing:
-    *   Cumulative runtime tracking.
+*   **Real-Time STDOUT Logging:** A live CLI dashboard providing:
+    *   Keep track of cumulative runtime.
     *   Progress metrics (Committed audio vs. Total duration).
     *   Dynamic ETA calculation based on real-time processing throughput.
 *   **Robustness:** Designed to handle the "end-of-file" edge cases, ensuring that any residual data left in the buffer is processed and committed before the process terminates.
@@ -41,6 +41,9 @@ pip install -r requirements.txt
 ```
 
 ## 🗺️ Future Roadmap
+* [ ] **Independant VAD:** Compute VAD with Silero before feeding to Faster-Whisper or PyAnnote. This could enable more robust silence culling as well as better integration for PyAnnote.
+* [ ] **Fix .srt timestamp error accumulation:** Ensure that the timestamp error accumulation bug introduced in modification of silence-culling logic is addressed, ensuring accurate timestamps.
+* [ ] **Speaker Diarization:** Add the feature to detect which speaker says which line. This is especially helpful for meeting notes. Suggested route involving PyAnnote.
 * [ ] **CLI Argument Parsing:** Move away from interactive prompts to a standard `argparse` interface for easier automation.
 * [ ] **Resume/Continue Capability:** Implement logic to parse existing `.srt` files to skip already-processed audio segments and resume interrupted jobs.
 * [ ] **Batch Processing:** Support for directory-wide transcription via a process queue.
