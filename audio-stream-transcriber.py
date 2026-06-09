@@ -1,8 +1,8 @@
 # 
 # Audio Stream Transcriber
 #
-# Version 0.7
-# ... Added CUDA
+# Version 0.7.1
+# ... Modified `interrogate_smi`. Better sholution should be considered...
 #
 
 
@@ -49,9 +49,14 @@ def interrogate_smi():
     
     data = result.stdout
     i = data.find("CUDA Version")
+    if i<0:
+        i = data.find("CUDA UMD Version")
+        i += 17
+    else:
+        i += 13
     j = data.find("|",i)
     #len("CUDA Version:")=13
-    CUDA_Version = float(data[i+13:j].strip())
+    CUDA_Version = float(data[i:j].strip())
     smi_says_go = CUDA_Version>=12
 
 # --- Main Transcription Class ---
